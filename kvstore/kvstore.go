@@ -109,3 +109,14 @@ func (kv *KVStore) Close() error {
 	close(kv.done)
 	return kv.save()
 }
+
+func (kv *KVStore) Keys() []string {
+	var keys []string
+	kv.data.Range(func(key, value interface{}) bool {
+		if k, ok := key.(string); ok {
+			keys = append(keys, k)
+		}
+		return true
+	})
+	return keys
+}
