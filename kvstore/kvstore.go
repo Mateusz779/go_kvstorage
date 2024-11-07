@@ -8,15 +8,19 @@ import (
 )
 
 type KVStore struct {
-	data     sync.Map
-	filePath string
-	done     chan struct{}
+	data         sync.Map
+	filePath     string
+	done         chan struct{}
+	alwaysSave   bool
+	periodicSave bool
 }
 
-func NewKVStore(filePath string) (*KVStore, error) {
+func NewKVStore(filePath string, alwaysSave bool) (*KVStore, error) {
 	store := &KVStore{
-		filePath: filePath,
-		done:     make(chan struct{}),
+		filePath:     filePath,
+		done:         make(chan struct{}),
+		alwaysSave:   alwaysSave,
+		periodicSave: true, // Możesz ustawić to na false, jeśli chcesz wyłączyć zapisywanie okresowe
 	}
 
 	// Wczytaj dane z pliku jeśli istnieje
@@ -26,14 +30,19 @@ func NewKVStore(filePath string) (*KVStore, error) {
 		}
 	}
 
-	// Uruchom okresowe zapisywanie w tle
-	go store.periodicSave()
+	// Uruchom okresowe zapisywanie w tle, jeśli jest włączone
+	if store.periodicSave {
+		go store.periodicSaveFunc()
+	}
 
 	return store, nil
 }
 
 func (kv *KVStore) Set(key string, value interface{}) {
 	kv.data.Store(key, value)
+	if kv.alwaysSave {
+		kv.save()
+	}
 }
 
 func (kv *KVStore) Get(key string) (interface{}, bool) {
@@ -42,9 +51,12 @@ func (kv *KVStore) Get(key string) (interface{}, bool) {
 
 func (kv *KVStore) Delete(key string) {
 	kv.data.Delete(key)
+	if kv.alwaysSave {
+		kv.save()
+	}
 }
 
-func (kv *KVStore) periodicSave() {
+func (kv *KVStore) periodicSaveFunc() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
